@@ -1,0 +1,42 @@
+{
+  "app": {
+    "name": "transcribe-anything",
+    "tagline": "Transcribe anything, keep it yours"
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "ru": "Русский"
+  },
+  "setup": {
+    "title": "Create the first administrator",
+    "subtitle": "This account owns the instance. There is no open registration.",
+    "username": "Username",
+    "password": "Password",
+    "passwordHint": "At least 8 characters",
+    "confirm": "Confirm password",
+    "submit": "Create account",
+    "passwordsDiffer": "The passwords do not match"
+  },
+  "login": {
+    "title": "Sign in",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Sign in"
+  },
+  "home": {
+    "greeting": "Signed in as {{username}}",
+    "empty": "No transcripts yet. Uploading arrives in the next milestone.",
+    "logout": "Sign out"
+  },
+  "authDisabled": {
+    "banner": "Authentication is disabled. Anyone who can reach this address has full access."
+  },
+  "errors": {
+    "setup_already_completed": "Setup has already been completed. Ask an administrator for an account.",
+    "invalid_credentials": "Wrong username or password",
+    "not_authenticated": "Your session has expired. Please sign in again.",
+    "network": "Cannot reach the server",
+    "unknown": "Something went wrong"
+  }
+}

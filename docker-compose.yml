@@ -1,0 +1,16 @@
+name: tany
+
+services:
+  api:
+    image: ghcr.io/swrneko/tany:latest
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8927}:8927"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - data:/data
+
+volumes:
+  data:
