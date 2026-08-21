@@ -36,6 +36,7 @@ async def login(
         signer.issue(user.id),
         max_age=signer.max_age_seconds,
         httponly=True,
+        secure=settings.session_cookie_secure,
         samesite="lax",
         path="/",
     )

@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     proxy_user_header: str = "X-Remote-User"
     session_cookie_name: str = "ta_session"
     session_max_age_days: int = 30
+    # Turn on once the instance is behind TLS. Off by default because the
+    # first thing everyone does is open http://localhost:8927, and a cookie
+    # the browser silently drops looks exactly like a broken login.
+    session_cookie_secure: bool = False
 
     @property
     def db_dir(self) -> Path:

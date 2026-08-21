@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 from app.config import Settings
@@ -12,6 +13,17 @@ async def test_disabled_auth_serves_every_request_as_the_local_user(tmp_path: Pa
 
         assert me.status_code == 200
         assert me.json()["is_admin"] is True
+
+
+async def test_simultaneous_first_requests_resolve_to_one_user(tmp_path: Path) -> None:
+    """Every browser tab hits the API at once on first load."""
+    settings = Settings(data_dir=tmp_path, auth_mode="disabled", _env_file=None)
+
+    async with running_client(settings) as client:
+        responses = await asyncio.gather(*(client.get("/api/auth/me") for _ in range(6)))
+
+        assert [response.status_code for response in responses] == [200] * 6
+        assert len({response.json()["id"] for response in responses}) == 1
 
 
 async def test_disabled_auth_skips_the_setup_wizard(tmp_path: Path) -> None:
