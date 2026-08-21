@@ -77,6 +77,65 @@
     "stt_server_error": "The speech-to-text server answered {{status}}",
     "stt_unavailable": "The speech-to-text server failed {{attempts}} times in a row",
     "chunking_failed": "ffmpeg could not cut this audio into chunks",
-    "not_found": "Not found"
+    "not_found": "Not found",
+    "template_without_transcript": "The template must contain {transcript}",
+    "preset_is_builtin": "Built-in presets cannot be changed. Copy it and edit the copy.",
+    "preset_not_found": "That preset no longer exists",
+    "preset_gone": "The preset this summary used has been deleted",
+    "summary_not_found": "That summary no longer exists",
+    "no_llm_provider": "No language model is configured",
+    "no_llm_model": "No model is set for the language model server",
+    "llm_unreachable": "Cannot reach the language model at {{base_url}}",
+    "llm_rejected_request": "The language model answered {{status}}",
+    "llm_server_error": "The language model answered {{status}}",
+    "llm_empty_reply": "The model returned nothing"
+  },
+  "summary": {
+    "title": "Summaries",
+    "preset": "Preset",
+    "run": "Summarise",
+    "empty": "No summaries yet. Pick a preset and run one."
+  },
+  "presets": {
+    "title": "Presets",
+    "new": "New preset",
+    "edit": "Edit preset",
+    "duplicate": "Copy and edit",
+    "copyOf": "{{name}} (copy)",
+    "builtinTag": "Built in",
+    "name": "Name",
+    "description": "Description",
+    "systemPrompt": "System prompt",
+    "userTemplate": "Template",
+    "templateHint": "Must contain {transcript}; that is where the text goes.",
+    "temperature": "Temperature",
+    "save": "Save",
+    "cancel": "Cancel",
+    "builtin": {
+      "brief": {
+        "name": "Brief summary",
+        "description": "A few sentences on what this was about"
+      },
+      "detailed": {
+        "name": "Detailed notes by topic",
+        "description": "Sectioned notes covering everything discussed"
+      },
+      "actions": {
+        "name": "Decisions and action items",
+        "description": "What was decided and who has to do what"
+      },
+      "bullets": {
+        "name": "Key points",
+        "description": "The substance as a flat list of bullets"
+      },
+      "minutes": {
+        "name": "Meeting minutes",
+        "description": "Participants, agenda, discussion, outcomes"
+      },
+      "custom": {
+        "name": "Blank",
+        "description": "A starting point for your own instructions"
+      }
+    }
   }
 }

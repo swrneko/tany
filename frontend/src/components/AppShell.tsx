@@ -28,6 +28,9 @@ export function AppShell({ authMode, onLogout, children }: AppShellProps) {
           >
             {t("app.name")}
           </Typography>
+          <Button component={Link} to="/presets" color="inherit">
+            {t("presets.title")}
+          </Button>
           <LanguageSwitch />
           {authMode === "builtin" && (
             <Button startIcon={<LogoutIcon />} onClick={onLogout}>

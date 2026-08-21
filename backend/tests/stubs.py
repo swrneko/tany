@@ -1,11 +1,12 @@
 import asyncio
-from collections.abc import Callable
+import json
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse, StreamingResponse
 
 WHISPER_VERBOSE_JSON: dict[str, Any] = {
     "task": "transcribe",
@@ -75,5 +76,76 @@ class SttStub:
         return httpx.AsyncClient(
             transport=httpx.ASGITransport(app=self.app),
             base_url="http://stt.test/v1",
+            headers={"Authorization": "Bearer sk-test"},
+        )
+
+
+@dataclass
+class RecordedCompletion:
+    model: str
+    system: str
+    user: str
+    temperature: float | None
+    stream: bool
+
+
+class LlmStub:
+    """A stand-in for an OpenAI-compatible chat endpoint.
+
+    Answers both the plain and the streaming shape, because the worker uses the
+    stream and any regression in the SSE framing is invisible otherwise.
+    """
+
+    def __init__(
+        self,
+        reply_for: Callable[[int], str] | None = None,
+        status: int = 200,
+        models: list[str] | None = None,
+    ) -> None:
+        self._reply_for = reply_for or (lambda index: f"summary {index}")
+        self.status = status
+        self.calls: list[RecordedCompletion] = []
+        self.app = FastAPI()
+
+        @self.app.get("/v1/models")
+        async def list_models() -> dict[str, Any]:
+            return {"data": [{"id": name, "object": "model"} for name in (models or ["stub-llm"])]}
+
+        @self.app.post("/v1/chat/completions")
+        async def completions(request: Request) -> Response:
+            body = await request.json()
+            index = len(self.calls)
+            messages = {message["role"]: message["content"] for message in body["messages"]}
+            self.calls.append(
+                RecordedCompletion(
+                    model=body["model"],
+                    system=messages.get("system", ""),
+                    user=messages.get("user", ""),
+                    temperature=body.get("temperature"),
+                    stream=bool(body.get("stream")),
+                )
+            )
+
+            if self.status >= 400:
+                return JSONResponse({"error": "nope"}, status_code=self.status)
+
+            reply = self._reply_for(index)
+            if not body.get("stream"):
+                return JSONResponse(
+                    {"choices": [{"message": {"role": "assistant", "content": reply}}]}
+                )
+
+            async def sse() -> AsyncIterator[str]:
+                for word in reply.split(" "):
+                    piece = json.dumps({"choices": [{"delta": {"content": word + " "}}]})
+                    yield f"data: {piece}\n\n"
+                yield "data: [DONE]\n\n"
+
+            return StreamingResponse(sse(), media_type="text/event-stream")
+
+    def http_client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=self.app),
+            base_url="http://llm.test/v1",
             headers={"Authorization": "Bearer sk-test"},
         )

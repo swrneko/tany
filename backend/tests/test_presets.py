@@ -1,0 +1,102 @@
+from pathlib import Path
+
+from httpx import AsyncClient
+
+from app.config import Settings
+from tests.conftest import running_client
+
+CUSTOM = {
+    "name": "For my Obsidian vault",
+    "description": "Bullets only, nothing else",
+    "system_prompt": "You write terse bullet points.",
+    "user_template": "Summarise:\n\n{transcript}",
+    "temperature": 0.2,
+    "output_format": "markdown",
+}
+
+
+async def test_the_builtin_presets_are_there_from_the_start(
+    client: AsyncClient, admin: dict[str, str]
+) -> None:
+    """Being able to invent a preset is the reason to host this yourself, but
+    the first run still has to be useful without inventing anything."""
+    await client.post("/api/auth/login", json=admin)
+
+    presets = (await client.get("/api/presets")).json()
+
+    assert len(presets) >= 5
+    assert all(preset["is_builtin"] for preset in presets)
+    # Names are shown to the user, so they are translated in the UI from a
+    # stable key rather than served pre-translated from the database.
+    assert all(preset["builtin_key"] for preset in presets)
+    assert "{transcript}" in presets[0]["user_template"]
+
+
+async def test_a_custom_preset_can_be_created_and_changed(
+    client: AsyncClient, admin: dict[str, str]
+) -> None:
+    await client.post("/api/auth/login", json=admin)
+
+    created = await client.post("/api/presets", json=CUSTOM)
+    assert created.status_code == 201
+    preset = created.json()
+    assert preset["name"] == CUSTOM["name"]
+    assert preset["is_builtin"] is False
+
+    updated = await client.put(f"/api/presets/{preset['id']}", json=CUSTOM | {"name": "Renamed"})
+    assert updated.status_code == 200
+    assert updated.json()["name"] == "Renamed"
+
+    assert "Renamed" in (await client.get("/api/presets")).text
+
+
+async def test_a_preset_must_keep_the_transcript_placeholder(
+    client: AsyncClient, admin: dict[str, str]
+) -> None:
+    """Without it the model is asked to summarise nothing at all, and answers
+    anyway."""
+    await client.post("/api/auth/login", json=admin)
+
+    refused = await client.post(
+        "/api/presets", json=CUSTOM | {"user_template": "Summarise the meeting."}
+    )
+
+    assert refused.status_code == 422
+    assert refused.json()["error"]["code"] == "template_without_transcript"
+
+
+async def test_a_builtin_preset_cannot_be_edited_or_deleted(
+    client: AsyncClient, admin: dict[str, str]
+) -> None:
+    await client.post("/api/auth/login", json=admin)
+    builtin = (await client.get("/api/presets")).json()[0]
+
+    edited = await client.put(f"/api/presets/{builtin['id']}", json=CUSTOM)
+    removed = await client.delete(f"/api/presets/{builtin['id']}")
+
+    assert edited.status_code == 409
+    assert edited.json()["error"]["code"] == "preset_is_builtin"
+    assert removed.status_code == 409
+
+
+async def test_a_custom_preset_can_be_deleted(
+    client: AsyncClient, admin: dict[str, str]
+) -> None:
+    await client.post("/api/auth/login", json=admin)
+    preset = (await client.post("/api/presets", json=CUSTOM)).json()
+
+    assert (await client.delete(f"/api/presets/{preset['id']}")).status_code == 204
+    assert CUSTOM["name"] not in (await client.get("/api/presets")).text
+
+
+async def test_someone_elses_preset_is_invisible(tmp_path: Path) -> None:
+    settings = Settings(data_dir=tmp_path, auth_mode="proxy", _env_file=None)
+
+    async with running_client(settings) as client:
+        await client.post("/api/presets", json=CUSTOM, headers={"X-Remote-User": "marina"})
+
+        stranger = await client.get("/api/presets", headers={"X-Remote-User": "pavel"})
+
+        names = [preset["name"] for preset in stranger.json()]
+        assert CUSTOM["name"] not in names
+        assert names, "the builtins belong to everyone"

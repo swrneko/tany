@@ -16,8 +16,10 @@ from app.config import Settings
 from app.crypto import decrypt_secret
 from app.db import Database
 from app.errors import ApiError
+from app.llm import llm_http_client
 from app.media import detect_silences, extract_chunk, normalize_to_opus, probe
-from app.models import Job, Provider, Segment, Transcript, utcnow
+from app.models import Job, Provider, Segment, Summary, Transcript, utcnow
+from app.summary_runner import LlmFactory, SummaryRunner
 from app.stt import SttClient
 from app.stt import Segment as SttSegment
 from app.stt import Transcription, stt_http_client
@@ -52,20 +54,25 @@ class Worker:
         secret: bytes,
         *,
         stt_factory: SttFactory | None = None,
+        llm_factory: LlmFactory | None = None,
     ) -> None:
         self.settings = settings
         self.database = database
         self.secret = secret
         self.identity = worker_identity()
         self._stt_factory = stt_factory or self._default_stt_client
+        self._llm_factory = llm_factory or self._default_llm_client
+
+    def _api_key(self, provider: Provider) -> str | None:
+        if not provider.api_key_encrypted:
+            return None
+        return decrypt_secret(provider.api_key_encrypted, self.secret)
 
     def _default_stt_client(self, provider: Provider) -> httpx.AsyncClient:
-        api_key = (
-            decrypt_secret(provider.api_key_encrypted, self.secret)
-            if provider.api_key_encrypted
-            else None
-        )
-        return stt_http_client(provider.base_url, api_key)
+        return stt_http_client(provider.base_url, self._api_key(provider))
+
+    def _default_llm_client(self, provider: Provider) -> httpx.AsyncClient:
+        return llm_http_client(provider.base_url, self._api_key(provider))
 
     async def recover_stale_jobs(self) -> int:
         """Requeue whatever the previous worker was holding when it died.
@@ -110,6 +117,54 @@ class Worker:
                 await asyncio.sleep(IDLE_POLL_SECONDS)
 
     async def run_once(self) -> bool:
+        # Transcription first: a summary is worthless until its transcript
+        # exists, and a queue of summaries must not starve new recordings.
+        return await self._run_transcription() or await self._run_summary()
+
+    async def _run_summary(self) -> bool:
+        summary_id = await self._claim_summary()
+        if summary_id is None:
+            return False
+
+        async with self.database.session_factory() as session:
+            summary = await session.get(Summary, summary_id)
+            assert summary is not None
+            try:
+                await SummaryRunner(self.settings, session, self._llm_factory).run(summary)
+                summary.status = "done"
+            except ApiError as failure:
+                log.warning("summary %s failed: %s", summary.id, failure.message)
+                summary.status = "failed"
+                summary.error_code = failure.code
+                summary.error_message = failure.message
+                summary.error_params = json.dumps(failure.params)
+            summary.finished_at = utcnow()
+            await session.commit()
+
+        return True
+
+    async def _claim_summary(self) -> object | None:
+        now = utcnow()
+        oldest = (
+            select(Summary.id)
+            .where(Summary.status == "queued")
+            .order_by(Summary.created_at)
+            .limit(1)
+            .scalar_subquery()
+        )
+        statement = (
+            update(Summary)
+            .where(Summary.id == oldest)
+            .values(status="running", worker_id=self.identity, heartbeat_at=now)
+            .returning(Summary.id)
+        )
+
+        async with self.database.session_factory() as session:
+            claimed = (await session.execute(statement)).scalar_one_or_none()
+            await session.commit()
+            return claimed
+
+    async def _run_transcription(self) -> bool:
         job_id = await self._claim()
         if job_id is None:
             return False

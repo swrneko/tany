@@ -4,13 +4,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import auth, health, jobs, providers, setup
+from app.api import auth, health, jobs, presets, providers, setup, summaries
 from app.config import Settings
 from app.db import Database
 from app.errors import register_error_handlers
 from app.migrator import upgrade_to_head
 from app.secrets import load_or_create_secret
-from app.seed import seed_providers
+from app.seed import seed_builtin_presets, seed_providers
 from app.sessions import SessionSigner
 from app.static import mount_frontend
 
@@ -27,6 +27,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     async with app.state.db.session_factory() as session:
         await seed_providers(session, settings, app.state.secret)
+        await seed_builtin_presets(session)
 
     try:
         yield
@@ -43,5 +44,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth.router, prefix="/api")
     app.include_router(jobs.router, prefix="/api")
     app.include_router(providers.router, prefix="/api")
+    app.include_router(presets.router, prefix="/api")
+    app.include_router(summaries.router, prefix="/api")
     mount_frontend(app, app.state.settings.frontend_dist)
     return app

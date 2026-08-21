@@ -7,9 +7,10 @@ Everything AI-shaped happens over OpenAI-compatible HTTP, so you can point it at
 Ollama, LM Studio, vLLM, a local Whisper server, or a cloud API — the service
 itself ships no model weights.
 
-> **Status: early.** Upload a file and you get a transcript with timestamps.
-> Chunking of long recordings, live progress, AI summaries, and link ingest are
-> still to come — see [SPEC.md](SPEC.md) for the plan.
+> **Status: early.** Upload a file and you get a transcript with timestamps, a
+> player that follows it, and a summary shaped by whichever preset you pick.
+> Ingest from links, search, export, and sharing are still to come — see
+> [SPEC.md](SPEC.md) for the plan.
 
 ## Quick start
 
@@ -29,6 +30,15 @@ whisper.cpp's server, faster-whisper-server, LocalAI, or the OpenAI API. Point
 If that server runs on the host rather than in Docker, the address inside the
 container is `http://host.docker.internal:PORT/v1`, not `localhost`. That single
 mistake accounts for most self-hosting failures.
+
+Summaries need a second endpoint, `LLM_BASE_URL`, pointing at anything that
+speaks `/v1/chat/completions` — Ollama, LM Studio, vLLM, or a cloud API.
+Transcription works without it; only summarising is unavailable.
+
+Set `LLM_CONTEXT_TOKENS` to your model's real context window. It defaults low on
+purpose: guessing too high is the dangerous direction, because Ollama truncates
+an over-long prompt without complaining and returns a confident summary of the
+first third of the recording.
 
 [speaches]: https://github.com/speaches-ai/speaches
 

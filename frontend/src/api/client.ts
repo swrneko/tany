@@ -44,6 +44,39 @@ export interface Transcript {
   segments: TranscriptSegment[];
 }
 
+export interface Preset {
+  id: string;
+  name: string;
+  description: string | null;
+  system_prompt: string;
+  user_template: string;
+  model_override: string | null;
+  provider_id: string | null;
+  temperature: number | null;
+  output_format: string;
+  is_builtin: boolean;
+  /** Set on builtins. The UI translates this; `name` is the English fallback. */
+  builtin_key: string | null;
+}
+
+export type PresetDraft = Omit<Preset, "id" | "is_builtin" | "builtin_key">;
+
+export interface Summary {
+  id: string;
+  job_id: string;
+  preset_id: string | null;
+  preset_name: string;
+  status: JobStatus;
+  progress: number;
+  content: string;
+  partials_json: string | null;
+  model_used: string | null;
+  error_code: string | null;
+  error_params: Record<string, unknown>;
+  created_at: string;
+  finished_at: string | null;
+}
+
 export interface Provider {
   id: string;
   kind: "stt" | "llm";
@@ -145,4 +178,32 @@ export const api = {
   },
 
   listProviders: () => request<Provider[]>("/api/providers"),
+
+  listPresets: () => request<Preset[]>("/api/presets"),
+
+  createPreset: (draft: PresetDraft) =>
+    request<Preset>("/api/presets", { method: "POST", body: JSON.stringify(draft) }),
+
+  updatePreset: (id: string, draft: PresetDraft) =>
+    request<Preset>(`/api/presets/${id}`, { method: "PUT", body: JSON.stringify(draft) }),
+
+  deletePreset: (id: string) => request<void>(`/api/presets/${id}`, { method: "DELETE" }),
+
+  listSummaries: (jobId: string) => request<Summary[]>(`/api/jobs/${jobId}/summaries`),
+
+  createSummary: (jobId: string, presetId: string) =>
+    request<Summary>(`/api/jobs/${jobId}/summaries`, {
+      method: "POST",
+      body: JSON.stringify({ preset_id: presetId }),
+    }),
+
+  deleteSummary: (id: string) => request<void>(`/api/summaries/${id}`, { method: "DELETE" }),
+
+  /** Follow one summary as the worker writes it. */
+  watchSummary: (id: string, onSummary: (summary: Summary) => void): (() => void) => {
+    const source = new EventSource(`/api/summaries/${id}/events`);
+    source.onmessage = (event) => onSummary(JSON.parse(event.data) as Summary);
+    source.onerror = () => source.close();
+    return () => source.close();
+  },
 };

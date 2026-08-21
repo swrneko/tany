@@ -6,6 +6,7 @@ import { api, type SetupStatus, type User } from "./api/client";
 import { AppShell } from "./components/AppShell";
 import { JobsPage } from "./pages/JobsPage";
 import { LoginPage } from "./pages/LoginPage";
+import { PresetsPage } from "./pages/PresetsPage";
 import { SetupPage } from "./pages/SetupPage";
 import { TranscriptPage } from "./pages/TranscriptPage";
 
@@ -65,6 +66,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<JobsPage />} />
           <Route path="/jobs/:jobId" element={<TranscriptPage />} />
+          <Route path="/presets" element={<PresetsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AppShell>

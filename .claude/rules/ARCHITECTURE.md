@@ -53,8 +53,14 @@ them readable in order.
 │   │   ├── storage.py          streaming upload to disk with SHA-256
 │   │   ├── media.py            ffprobe and ffmpeg; the only media knowledge
 │   │   ├── stt.py              OpenAI transcription protocol client
+│   │   ├── llm.py              OpenAI chat protocol client, plain and streamed
+│   │   ├── chunking.py         where to cut a long recording
+│   │   ├── summarize.py        token budget and map-reduce splitting
+│   │   ├── summary_runner.py   produces one summary, in one pass or in stages
+│   │   ├── presets.py          the built-in prompts
 │   │   ├── worker.py           claim loop; also the worker entrypoint
-│   │   └── api/                health, setup, auth, jobs, providers
+│   │   └── api/                health, setup, auth, jobs, providers, presets,
+│   │                           summaries
 │   ├── migrations/             alembic
 │   └── tests/                  pytest, async, real HTTP through ASGITransport
 │       └── stubs.py            stand-in STT server (a stub, never a patch)
@@ -82,15 +88,20 @@ them readable in order.
 
 ## Status
 
-Milestones 0 to 2 complete: auth, the whole transcription pipeline, chunking on
+Milestones 0 to 3 complete: auth, the transcription pipeline, chunking on
 silence, live progress over SSE, cancellation that really stops the work,
-per-chunk retries, crash recovery, and a player that follows the transcript.
+per-chunk retries, crash recovery, a player that follows the transcript, and
+summaries by preset with automatic map-reduce and a kept history.
 
-Not built yet, in the order [SPEC.md](../../SPEC.md) plans them: summary presets
-and map-reduce, URL and yt-dlp ingest, search and export and sharing,
-diarisation.
+Not built yet, in the order [SPEC.md](../../SPEC.md) plans them: URL and yt-dlp
+ingest, search and export and sharing, diarisation.
 
 Known gaps left deliberately open:
+
+- Summaries have no cancel button and no retry. The transcription path has
+  both; the summary path does not, and a stuck summary needs deleting.
+- The token estimate is characters divided by three, not a tokeniser. It is
+  deliberately pessimistic, so it splits earlier than strictly necessary.
 
 - A provider can only be created from the environment; editing it in the UI
   arrives with the settings screen.

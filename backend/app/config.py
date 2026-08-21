@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.chunking import HARD_MAX_SECONDS, TARGET_SECONDS
+from app.summarize import DEFAULT_CONTEXT_TOKENS
 
 AuthMode = Literal["builtin", "proxy", "disabled"]
 ChunkingMode = Literal["auto", "always", "never"]
@@ -35,6 +36,15 @@ class Settings(BaseSettings):
     stt_base_url: str | None = None
     stt_api_key: str | None = None
     stt_model: str | None = None
+
+    llm_base_url: str | None = None
+    llm_api_key: str | None = None
+    llm_model: str | None = None
+    llm_context_tokens: int = DEFAULT_CONTEXT_TOKENS
+
+    # How often the worker writes streamed summary text back to the database.
+    # Every token would hammer SQLite; once a second is smooth enough to read.
+    summary_flush_seconds: float = 0.5
 
     auth_mode: AuthMode = "builtin"
     proxy_user_header: str = "X-Remote-User"

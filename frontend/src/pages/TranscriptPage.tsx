@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 
 import { api, type Job, type Transcript } from "../api/client";
+import { SummaryPanel } from "../components/SummaryPanel";
 import { useApiErrorMessage } from "../useApiError";
 
 export function TranscriptPage() {
@@ -152,6 +153,8 @@ export function TranscriptPage() {
           })}
         </Stack>
       </Paper>
+
+      <SummaryPanel jobId={job.id} />
     </Stack>
   );
 }
