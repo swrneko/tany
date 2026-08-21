@@ -7,9 +7,9 @@ Everything AI-shaped happens over OpenAI-compatible HTTP, so you can point it at
 Ollama, LM Studio, vLLM, a local Whisper server, or a cloud API — the service
 itself ships no model weights.
 
-> **Status: early.** Milestone 0 is done — the service installs, runs, and has
-> accounts. Transcription itself lands in the next milestone. See
-> [SPEC.md](SPEC.md) for the full plan.
+> **Status: early.** Upload a file and you get a transcript with timestamps.
+> Chunking of long recordings, live progress, AI summaries, and link ingest are
+> still to come — see [SPEC.md](SPEC.md) for the plan.
 
 ## Quick start
 
@@ -20,6 +20,17 @@ docker compose up -d
 
 Open `http://localhost:8927`. The first visit asks you to create an
 administrator account — there is no default password and no open registration.
+
+To actually transcribe anything you need a speech-to-text endpoint. Any
+OpenAI-compatible `/v1/audio/transcriptions` server works — [speaches],
+whisper.cpp's server, faster-whisper-server, LocalAI, or the OpenAI API. Point
+`STT_BASE_URL` at it in `.env`.
+
+If that server runs on the host rather than in Docker, the address inside the
+container is `http://host.docker.internal:PORT/v1`, not `localhost`. That single
+mistake accounts for most self-hosting failures.
+
+[speaches]: https://github.com/speaches-ai/speaches
 
 ## Configuration
 

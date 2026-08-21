@@ -1,24 +1,31 @@
 import LogoutIcon from "@mui/icons-material/Logout";
 import { Alert, AppBar, Box, Button, Container, Toolbar, Typography } from "@mui/material";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
-import type { AuthMode, User } from "../api/client";
-import { LanguageSwitch } from "../components/LanguageSwitch";
+import type { AuthMode } from "../api/client";
+import { LanguageSwitch } from "./LanguageSwitch";
 
-interface HomePageProps {
-  user: User;
+interface AppShellProps {
   authMode: AuthMode;
   onLogout: () => void;
+  children: ReactNode;
 }
 
-export function HomePage({ user, authMode, onLogout }: HomePageProps) {
+export function AppShell({ authMode, onLogout, children }: AppShellProps) {
   const { t } = useTranslation();
 
   return (
     <Box sx={{ minHeight: "100dvh" }}>
-      <AppBar position="static" color="transparent" elevation={0}>
+      <AppBar position="sticky" color="transparent" elevation={0}>
         <Toolbar sx={{ gap: 2 }}>
-          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 700 }}>
+          <Typography
+            component={Link}
+            to="/"
+            variant="h6"
+            sx={{ flexGrow: 1, fontWeight: 700, color: "inherit", textDecoration: "none" }}
+          >
             {t("app.name")}
           </Typography>
           <LanguageSwitch />
@@ -30,13 +37,9 @@ export function HomePage({ user, authMode, onLogout }: HomePageProps) {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="md" sx={{ py: 4, display: "grid", gap: 3 }}>
+      <Container maxWidth="md" sx={{ py: 3, display: "grid", gap: 3 }}>
         {authMode === "disabled" && <Alert severity="warning">{t("authDisabled.banner")}</Alert>}
-
-        <Typography variant="body2" color="text.secondary">
-          {t("home.greeting", { username: user.username })}
-        </Typography>
-        <Typography color="text.secondary">{t("home.empty")}</Typography>
+        {children}
       </Container>
     </Box>
   );

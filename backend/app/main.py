@@ -4,12 +4,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import auth, health, setup
+from app.api import auth, health, jobs, providers, setup
 from app.config import Settings
 from app.db import Database
 from app.errors import register_error_handlers
 from app.migrator import upgrade_to_head
 from app.secrets import load_or_create_secret
+from app.seed import seed_providers
 from app.sessions import SessionSigner
 from app.static import mount_frontend
 
@@ -21,9 +22,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Migrations run automatically: "exec into the container and upgrade" is a guaranteed bug report
     await asyncio.to_thread(upgrade_to_head, settings.db_path)
     app.state.db = Database(settings.db_path)
-    app.state.sessions = SessionSigner(
-        load_or_create_secret(settings.secret_key_path), settings.session_max_age_days
-    )
+    app.state.secret = load_or_create_secret(settings.secret_key_path)
+    app.state.sessions = SessionSigner(app.state.secret, settings.session_max_age_days)
+
+    async with app.state.db.session_factory() as session:
+        await seed_providers(session, settings, app.state.secret)
+
     try:
         yield
     finally:
@@ -37,5 +41,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router, prefix="/api")
     app.include_router(setup.router, prefix="/api")
     app.include_router(auth.router, prefix="/api")
+    app.include_router(jobs.router, prefix="/api")
+    app.include_router(providers.router, prefix="/api")
     mount_frontend(app, app.state.settings.frontend_dist)
     return app

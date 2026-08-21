@@ -16,10 +16,16 @@
 |---|---|---|
 | Tests | `backend/` | `uv run pytest` |
 | API (dev) | `backend/` | `uv run uvicorn app.main:create_app --factory --reload --port 8927` |
+| Worker (dev) | `backend/` | `uv run python -m app.worker` |
 | UI (dev) | `frontend/` | `npm run dev` |
 | Typecheck UI | `frontend/` | `npm run typecheck` |
 | Image | root | `docker build -t tany:dev .` |
-| New migration | `backend/` | `uv run alembic revision -m "..." --autogenerate` |
+| New migration | `backend/` | `DATA_DIR=/tmp/x uv run alembic revision -m "..." --autogenerate` |
+
+Alembic needs `DATA_DIR` because it migrates whichever database the settings
+point at; the app passes the URL programmatically, the CLI falls back to the
+same settings. Migration files are renamed to `000N_slug.py` by hand to keep
+them readable in order.
 
 ## Layout
 
@@ -42,15 +48,23 @@
 │   │   ├── secrets.py          /data/secret.key
 │   │   ├── static.py           SPA serving with an /api-safe catch-all
 │   │   ├── migrator.py         alembic upgrade head, in-process
-│   │   └── api/                health, setup, auth
+│   │   ├── crypto.py           Fernet encryption and masking for API keys
+│   │   ├── seed.py             env -> database bootstrap for providers
+│   │   ├── storage.py          streaming upload to disk with SHA-256
+│   │   ├── media.py            ffprobe and ffmpeg; the only media knowledge
+│   │   ├── stt.py              OpenAI transcription protocol client
+│   │   ├── worker.py           claim loop; also the worker entrypoint
+│   │   └── api/                health, setup, auth, jobs, providers
 │   ├── migrations/             alembic
 │   └── tests/                  pytest, async, real HTTP through ASGITransport
+│       └── stubs.py            stand-in STT server (a stub, never a patch)
 └── frontend/src/
     ├── api/client.ts           fetch wrapper, throws ApiError with a code
     ├── theme.ts                M3 palette generated from one seed colour
     ├── i18n.ts + locales/      en, ru
-    ├── components/             AuthLayout, LanguageSwitch
-    └── pages/                  SetupPage, LoginPage, HomePage
+    ├── useApiError.ts          error code -> translated message
+    ├── components/             AppShell, AuthLayout, LanguageSwitch
+    └── pages/                  Setup, Login, Jobs, Transcript
 ```
 
 ## Invariants
@@ -68,5 +82,18 @@
 
 ## Status
 
-Milestone 0 complete: skeleton, migrations, setup wizard, the three auth modes,
-SPA served from the API. Milestones 1-6 are listed in [SPEC.md](../../SPEC.md).
+Milestones 0 and 1 complete: skeleton, auth, and a working vertical slice --
+upload, ffprobe, ffmpeg to Opus, one whole-file STT call, transcript on screen.
+
+Not built yet, in the order [SPEC.md](../../SPEC.md) plans them: chunking on
+silence, SSE progress, cancel and retry, the synchronised player, summary
+presets, URL and yt-dlp ingest, search and export, diarisation.
+
+Known gaps left deliberately open:
+
+- The job list polls every two seconds. SSE replaces it in milestone 2.
+- A provider can only be created from the environment; editing it in the UI
+  arrives with the settings screen.
+- `language` comes back from the provider verbatim. OpenAI answers `english`
+  where faster-whisper answers `en`. Nothing depends on it yet, but chunking
+  will feed it back as an input, and that is where the two forms will collide.

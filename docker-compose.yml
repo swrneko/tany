@@ -12,5 +12,26 @@ services:
     volumes:
       - data:/data
 
+  worker:
+    image: ghcr.io/swrneko/tany:latest
+    restart: unless-stopped
+    command: ["python", "-m", "app.worker"]
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - data:/data
+    # The image's healthcheck curls the API port, which the worker does not
+    # serve. A real liveness probe belongs on the heartbeat column and arrives
+    # with job recovery; until then, an inherited check that can only ever fail
+    # is worse than none.
+    healthcheck:
+      disable: true
+    # Waits for the API, which owns the migrations. The worker never touches
+    # the schema itself -- two processes racing alembic is a bad first minute.
+    depends_on:
+      api:
+        condition: service_healthy
+
 volumes:
   data:

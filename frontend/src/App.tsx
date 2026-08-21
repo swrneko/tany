@@ -1,10 +1,13 @@
 import { Box, CircularProgress } from "@mui/material";
 import { useCallback, useEffect, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { api, type SetupStatus, type User } from "./api/client";
-import { HomePage } from "./pages/HomePage";
+import { AppShell } from "./components/AppShell";
+import { JobsPage } from "./pages/JobsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { SetupPage } from "./pages/SetupPage";
+import { TranscriptPage } from "./pages/TranscriptPage";
 
 export default function App() {
   const [status, setStatus] = useState<SetupStatus | null>(null);
@@ -52,12 +55,19 @@ export default function App() {
   }
 
   return (
-    <HomePage
-      user={user}
-      authMode={status.auth_mode}
-      onLogout={() => {
-        void logout();
-      }}
-    />
+    <BrowserRouter>
+      <AppShell
+        authMode={status.auth_mode}
+        onLogout={() => {
+          void logout();
+        }}
+      >
+        <Routes>
+          <Route path="/" element={<JobsPage />} />
+          <Route path="/jobs/:jobId" element={<TranscriptPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AppShell>
+    </BrowserRouter>
   );
 }

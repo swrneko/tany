@@ -1,15 +1,28 @@
 from alembic import context
 from sqlalchemy import create_engine, pool
 
+from app.config import Settings
 from app.models import Base
 
 config = context.config
 target_metadata = Base.metadata
 
 
+def database_url() -> str:
+    """The app sets this programmatically; the CLI falls back to the same
+    settings the app would use, so both agree on which file is being migrated."""
+    configured = config.get_main_option("sqlalchemy.url")
+    if configured:
+        return configured
+
+    settings = Settings()
+    settings.ensure_dirs()
+    return f"sqlite:///{settings.db_path}"
+
+
 def run_migrations_offline() -> None:
     context.configure(
-        url=config.get_main_option("sqlalchemy.url"),
+        url=database_url(),
         target_metadata=target_metadata,
         literal_binds=True,
         render_as_batch=True,
@@ -19,9 +32,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    url = config.get_main_option("sqlalchemy.url")
-    assert url is not None
-    connectable = create_engine(url, poolclass=pool.NullPool)
+    connectable = create_engine(database_url(), poolclass=pool.NullPool)
     with connectable.connect() as connection:
         # render_as_batch: SQLite cannot ALTER COLUMN, so alembic recreates the table instead
         context.configure(

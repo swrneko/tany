@@ -22,8 +22,14 @@ def get_settings(request: Request) -> Settings:
     return settings
 
 
+def get_secret(request: Request) -> bytes:
+    secret: bytes = request.app.state.secret
+    return secret
+
+
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
+SecretDep = Annotated[bytes, Depends(get_secret)]
 
 
 async def resolve_user(session: AsyncSession, username: str, *, is_admin: bool) -> User:

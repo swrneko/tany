@@ -1,3 +1,4 @@
+import subprocess
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -30,6 +31,25 @@ def settings(tmp_path: Path) -> Settings:
 async def client(settings: Settings) -> AsyncIterator[AsyncClient]:
     async with running_client(settings) as ac:
         yield ac
+
+
+@pytest.fixture(scope="session")
+def sample_audio(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Three seconds of a 440 Hz tone, produced by the same ffmpeg the app uses.
+
+    Generating it beats committing a binary: the fixture proves ffmpeg is
+    present and exercises the real command line, which is where the bugs are.
+    """
+    path = tmp_path_factory.mktemp("fixtures") / "sample.wav"
+    subprocess.run(
+        [
+            "ffmpeg", "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "sine=frequency=440:duration=3",
+            "-y", str(path),
+        ],
+        check=True,
+    )
+    return path
 
 
 @pytest.fixture

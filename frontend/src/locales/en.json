@@ -26,16 +26,47 @@
   },
   "home": {
     "greeting": "Signed in as {{username}}",
-    "empty": "No transcripts yet. Uploading arrives in the next milestone.",
     "logout": "Sign out"
   },
   "authDisabled": {
     "banner": "Authentication is disabled. Anyone who can reach this address has full access."
   },
+  "jobs": {
+    "title": "Transcripts",
+    "empty": "Nothing here yet. Drop in an audio or video file to start.",
+    "drop": "Drop a file here, or click to choose one",
+    "uploading": "Uploading {{name}}…",
+    "noProvider": "No speech-to-text server is configured, so transcription will fail. Set STT_BASE_URL and restart.",
+    "status": {
+      "queued": "Queued",
+      "running": "Transcribing",
+      "done": "Ready",
+      "failed": "Failed"
+    }
+  },
+  "transcript": {
+    "back": "All transcripts",
+    "copy": "Copy text",
+    "copied": "Copied",
+    "language": "Language: {{language}}",
+    "timestamps": "Timestamps"
+  },
   "errors": {
     "setup_already_completed": "Setup has already been completed. Ask an administrator for an account.",
     "invalid_credentials": "Wrong username or password",
     "not_authenticated": "Your session has expired. Please sign in again.",
+    "job_not_found": "This transcript does not exist",
+    "transcript_not_ready": "The transcript is not ready yet",
+    "upload_too_large": "That file is too large",
+    "empty_upload": "That file is empty",
+    "unsupported_media": "ffmpeg cannot read this file — is it really audio or video?",
+    "no_audio_stream": "This file has no audio track",
+    "normalisation_failed": "ffmpeg could not convert this file",
+    "no_stt_provider": "No speech-to-text server is configured",
+    "no_stt_model": "No model is set for the speech-to-text server",
+    "stt_unreachable": "Cannot reach the speech-to-text server at {{base_url}}",
+    "stt_rejected_request": "The speech-to-text server answered {{status}}",
+    "source_missing": "The uploaded file is no longer on disk",
     "network": "Cannot reach the server",
     "unknown": "Something went wrong"
   }

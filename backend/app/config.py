@@ -14,6 +14,14 @@ class Settings(BaseSettings):
     data_dir: Path = Path("/data")
     frontend_dist: Path | None = None
 
+    max_upload_size: int = 5 * 1024**3
+
+    # Bootstrap seed only. Once a provider row exists the database is the source
+    # of truth, so changing a provider never means editing env and restarting.
+    stt_base_url: str | None = None
+    stt_api_key: str | None = None
+    stt_model: str | None = None
+
     auth_mode: AuthMode = "builtin"
     proxy_user_header: str = "X-Remote-User"
     session_cookie_name: str = "ta_session"
