@@ -9,6 +9,27 @@ def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+class UtcDateTime(sa.types.TypeDecorator[datetime]):
+    """Store naive UTC, hand back aware UTC.
+
+    SQLite keeps no offset, so an aware value goes in and a naive one comes out.
+    That breaks twice: comparing a bound aware timestamp against stored naive
+    text gives nonsense, and a naive timestamp handed to a browser renders in
+    whatever timezone the viewer happens to be sitting in.
+    """
+
+    impl = sa.DateTime
+    cache_ok = True
+
+    def process_bind_param(self, value: datetime | None, dialect: object) -> datetime | None:
+        if value is None:
+            return None
+        return value.astimezone(UTC).replace(tzinfo=None) if value.tzinfo else value
+
+    def process_result_value(self, value: datetime | None, dialect: object) -> datetime | None:
+        return value.replace(tzinfo=UTC) if value is not None else None
+
+
 class Base(DeclarativeBase):
     pass
 
@@ -20,7 +41,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(sa.String(64), unique=True)
     password_hash: Mapped[str] = mapped_column(sa.String(255))
     is_admin: Mapped[bool] = mapped_column(sa.Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow)
 
 
 class Provider(Base):
@@ -41,7 +62,7 @@ class Provider(Base):
     context_tokens: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
     extra_json: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
     is_default: Mapped[bool] = mapped_column(sa.Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow)
 
 
 class Job(Base):
@@ -75,13 +96,11 @@ class Job(Base):
     error_message: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
 
     worker_id: Mapped[str | None] = mapped_column(sa.String(64), nullable=True)
-    heartbeat_at: Mapped[datetime | None] = mapped_column(
-        sa.DateTime(timezone=True), nullable=True
-    )
+    heartbeat_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=utcnow)
-    started_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True), nullable=True)
-    finished_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
 
 class Transcript(Base):
@@ -95,7 +114,7 @@ class Transcript(Base):
     # and every user edit is a layer computed on top of this.
     raw_json: Mapped[str] = mapped_column(sa.Text)
     language: Mapped[str | None] = mapped_column(sa.String(32), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow)
 
 
 class Segment(Base):

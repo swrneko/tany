@@ -82,18 +82,25 @@ them readable in order.
 
 ## Status
 
-Milestones 0 and 1 complete: skeleton, auth, and a working vertical slice --
-upload, ffprobe, ffmpeg to Opus, one whole-file STT call, transcript on screen.
+Milestones 0 to 2 complete: auth, the whole transcription pipeline, chunking on
+silence, live progress over SSE, cancellation that really stops the work,
+per-chunk retries, crash recovery, and a player that follows the transcript.
 
-Not built yet, in the order [SPEC.md](../../SPEC.md) plans them: chunking on
-silence, SSE progress, cancel and retry, the synchronised player, summary
-presets, URL and yt-dlp ingest, search and export, diarisation.
+Not built yet, in the order [SPEC.md](../../SPEC.md) plans them: summary presets
+and map-reduce, URL and yt-dlp ingest, search and export and sharing,
+diarisation.
 
 Known gaps left deliberately open:
 
-- The job list polls every two seconds. SSE replaces it in milestone 2.
 - A provider can only be created from the environment; editing it in the UI
   arrives with the settings screen.
-- `language` comes back from the provider verbatim. OpenAI answers `english`
-  where faster-whisper answers `en`. Nothing depends on it yet, but chunking
-  will feed it back as an input, and that is where the two forms will collide.
+- `language` comes back from the provider verbatim and is fed straight back to
+  later chunks. OpenAI answers `english` where faster-whisper answers `en`, and
+  only the second form is a valid input. Against a cloud endpoint this silently
+  weakens the forcing rather than breaking it, so it needs a normalising table
+  before the provider list widens.
+- Segment edits have a column and an export path but no endpoint yet.
+- Both SSE streams poll the database on a timer. That is fine at this size and
+  survives multiple API processes, which a shared in-memory bus would not.
+- The worker has no healthcheck; `docker-compose.yml` disables the inherited
+  one. A real probe belongs on `heartbeat_at`.

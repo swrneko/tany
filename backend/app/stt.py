@@ -73,6 +73,17 @@ class SttClient:
                     base_url=str(self._http.base_url),
                 ) from cause
 
+        if response.status_code >= 500:
+            # The server is unwell rather than the request malformed: worth
+            # sending again after a pause.
+            raise ApiError(
+                502,
+                "stt_server_error",
+                f"The speech-to-text server answered {response.status_code}.",
+                status=response.status_code,
+                detail=response.text[:500],
+            )
+
         if response.status_code >= 400:
             raise ApiError(
                 502,

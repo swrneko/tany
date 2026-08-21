@@ -41,8 +41,11 @@
       "queued": "Queued",
       "running": "Transcribing",
       "done": "Ready",
-      "failed": "Failed"
-    }
+      "failed": "Failed",
+      "cancelling": "Stopping",
+      "cancelled": "Cancelled"
+    },
+    "cancel": "Cancel"
   },
   "transcript": {
     "back": "All transcripts",
@@ -68,6 +71,12 @@
     "stt_rejected_request": "The speech-to-text server answered {{status}}",
     "source_missing": "The uploaded file is no longer on disk",
     "network": "Cannot reach the server",
-    "unknown": "Something went wrong"
+    "unknown": "Something went wrong",
+    "job_not_cancellable": "This job has already finished",
+    "audio_unavailable": "The audio for this transcript is gone",
+    "stt_server_error": "The speech-to-text server answered {{status}}",
+    "stt_unavailable": "The speech-to-text server failed {{attempts}} times in a row",
+    "chunking_failed": "ffmpeg could not cut this audio into chunks",
+    "not_found": "Not found"
   }
 }

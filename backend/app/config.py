@@ -3,7 +3,10 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.chunking import HARD_MAX_SECONDS, TARGET_SECONDS
+
 AuthMode = Literal["builtin", "proxy", "disabled"]
+ChunkingMode = Literal["auto", "always", "never"]
 
 
 class Settings(BaseSettings):
@@ -15,6 +18,17 @@ class Settings(BaseSettings):
     frontend_dist: Path | None = None
 
     max_upload_size: int = 5 * 1024**3
+
+    sse_poll_seconds: float = 1.0
+    cancel_poll_seconds: float = 1.0
+    heartbeat_stale_seconds: float = 120.0
+
+    stt_retry_attempts: int = 3
+    stt_retry_backoff_seconds: float = 2.0
+
+    stt_chunking: ChunkingMode = "auto"
+    chunk_target_seconds: float = TARGET_SECONDS
+    chunk_max_seconds: float = HARD_MAX_SECONDS
 
     # Bootstrap seed only. Once a provider row exists the database is the source
     # of truth, so changing a provider never means editing env and restarting.

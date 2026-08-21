@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,6 +15,14 @@ FFPROBE = "ffprobe"
 TARGET_SAMPLE_RATE = 16_000
 TARGET_BITRATE = "32k"
 
+# A pause has to be quiet enough and long enough to be a sentence break rather
+# than a breath. These are ffmpeg's silencedetect parameters, nothing learned.
+SILENCE_NOISE_FLOOR = "-35dB"
+SILENCE_MIN_DURATION = 0.4
+
+SILENCE_START = re.compile(r"silence_start:\s*(-?[\d.]+)")
+SILENCE_END = re.compile(r"silence_end:\s*(-?[\d.]+)")
+
 
 @dataclass(frozen=True)
 class MediaInfo:
@@ -27,11 +36,12 @@ class MediaInfo:
         return self.codec is not None
 
 
-async def run(program: str, *args: str) -> tuple[int, bytes]:
-    """Run an ffmpeg-family tool, returning its exit code and stdout.
+async def run(program: str, *args: str) -> tuple[int, bytes, bytes]:
+    """Run an ffmpeg-family tool, returning its exit code, stdout and stderr.
 
-    stderr is captured and folded into the raised error rather than discarded:
-    ffmpeg's diagnostics are the only clue when a container is malformed.
+    stderr is kept rather than discarded on both paths: ffmpeg's diagnostics are
+    the only clue when a container is malformed, and silencedetect reports its
+    findings there while exiting successfully.
     """
     process = await asyncio.create_subprocess_exec(
         program,
@@ -39,16 +49,21 @@ async def run(program: str, *args: str) -> tuple[int, bytes]:
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await process.communicate()
-    if process.returncode != 0:
-        return process.returncode or 1, stderr
-    return 0, stdout
+    try:
+        stdout, stderr = await process.communicate()
+    except asyncio.CancelledError:
+        # Cancelling the coroutine would otherwise leave ffmpeg running, which
+        # is the whole reason a cancel button that only sets a flag is a lie.
+        process.kill()
+        await process.wait()
+        raise
+    return process.returncode or 0, stdout, stderr
 
 
 async def probe(path: Path) -> MediaInfo:
     """Read what a file actually is. A pure reader: a media file with no audio
     track is a valid answer here, and the caller decides whether that is fatal."""
-    code, output = await run(
+    code, output, _ = await run(
         FFPROBE,
         "-v", "error",
         "-print_format", "json",
@@ -79,6 +94,62 @@ async def probe(path: Path) -> MediaInfo:
     )
 
 
+async def extract_chunk(source: Path, target: Path, *, start: float, end: float) -> None:
+    """Copy one span out of the normalised audio.
+
+    Stream copy, not re-encode: the source is already the target format, so
+    cutting a two-hour file into chunks costs seconds instead of minutes.
+    """
+    target.parent.mkdir(parents=True, exist_ok=True)
+    code, _, stderr = await run(
+        FFMPEG,
+        "-hide_banner", "-loglevel", "error", "-nostdin",
+        "-ss", f"{start:.3f}",
+        "-i", str(source),
+        "-t", f"{end - start:.3f}",
+        "-c", "copy",
+        "-y", str(target),
+    )
+    if code != 0:
+        target.unlink(missing_ok=True)
+        raise ApiError(
+            422,
+            "chunking_failed",
+            "ffmpeg could not cut this audio into chunks.",
+            detail=stderr.decode(errors="replace").strip()[:500],
+        )
+
+
+async def detect_silences(path: Path) -> list[tuple[float, float]]:
+    """Where the recording goes quiet, according to ffmpeg and nothing else.
+
+    No model, no VAD: the only question is where a cut will not land mid-word,
+    and an amplitude threshold answers it well enough for that.
+    """
+    duration = (await probe(path)).duration_sec
+
+    _, _, stderr = await run(
+        FFMPEG,
+        "-hide_banner", "-nostdin",
+        "-i", str(path),
+        "-af", f"silencedetect=noise={SILENCE_NOISE_FLOOR}:d={SILENCE_MIN_DURATION}",
+        "-f", "null", "-",
+    )
+
+    report = stderr.decode(errors="replace")
+    starts = [float(match) for match in SILENCE_START.findall(report)]
+    ends = [float(match) for match in SILENCE_END.findall(report)]
+
+    silences: list[tuple[float, float]] = []
+    for index, start in enumerate(starts):
+        # A file that ends mid-pause gets a start with no end. Closing it at the
+        # duration keeps a legitimate cut point instead of discarding it.
+        end = ends[index] if index < len(ends) else duration
+        silences.append((max(start, 0.0), min(end, duration)))
+
+    return [(start, end) for start, end in silences if end > start]
+
+
 async def normalize_to_opus(source: Path, target: Path) -> MediaInfo:
     """Extract audio and re-encode it to the one format the rest of the
     pipeline knows about. Returns the probe of the result."""
@@ -92,7 +163,7 @@ async def normalize_to_opus(source: Path, target: Path) -> MediaInfo:
         )
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    code, stderr = await run(
+    code, _, stderr = await run(
         FFMPEG,
         "-hide_banner", "-loglevel", "error", "-nostdin",
         "-i", str(source),

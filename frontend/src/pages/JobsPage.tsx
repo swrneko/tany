@@ -1,31 +1,37 @@
+import CloseIcon from "@mui/icons-material/Close";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import {
   Alert,
   Box,
   Chip,
+  IconButton,
   LinearProgress,
   List,
+  ListItem,
   ListItemButton,
   ListItemText,
   Paper,
   Stack,
+  Tooltip,
   Typography,
 } from "@mui/material";
-import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type DragEvent, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
-import { api, type Job, type JobStatus } from "../api/client";
+import { api, TERMINAL_STATUSES, type Job, type JobStatus } from "../api/client";
 import { useApiErrorMessage, useCodeMessage } from "../useApiError";
-
-const POLL_INTERVAL_MS = 2000;
 
 const STATUS_COLOR: Record<JobStatus, "default" | "info" | "success" | "error"> = {
   queued: "default",
   running: "info",
+  cancelling: "default",
+  cancelled: "default",
   done: "success",
   failed: "error",
 };
+
+const isPending = (job: Job) => !TERMINAL_STATUSES.includes(job.status);
 
 export function JobsPage() {
   const { t } = useTranslation();
@@ -50,14 +56,13 @@ export function JobsPage() {
       .then((providers) => setHasProvider(providers.some((p) => p.kind === "stt")));
   }, [refresh]);
 
-  // Polling, not SSE — live progress is the next milestone, and a two-second
-  // poll on a list of a few dozen rows costs nothing until then.
-  const pending = jobs?.some((job) => job.status === "queued" || job.status === "running");
+  // Reopened whenever work starts: the server ends the stream once everything
+  // is terminal, so an idle page holds no connection at all.
+  const pendingCount = jobs?.filter(isPending).length ?? 0;
   useEffect(() => {
-    if (!pending) return;
-    const timer = setInterval(() => void refresh(), POLL_INTERVAL_MS);
-    return () => clearInterval(timer);
-  }, [pending, refresh]);
+    if (pendingCount === 0) return;
+    return api.watchJobs(setJobs);
+  }, [pendingCount]);
 
   const upload = async (file: File) => {
     setUploading(file.name);
@@ -69,6 +74,16 @@ export function JobsPage() {
       setError(describe(cause));
     } finally {
       setUploading(null);
+    }
+  };
+
+  const cancel = async (event: MouseEvent, job: Job) => {
+    event.stopPropagation();
+    try {
+      await api.cancelJob(job.id);
+      await refresh();
+    } catch (cause) {
+      setError(describe(cause));
     }
   };
 
@@ -128,28 +143,51 @@ export function JobsPage() {
         <Paper elevation={0} sx={{ borderRadius: 6, overflow: "hidden" }}>
           <List disablePadding>
             {jobs.map((job) => (
-              <ListItemButton
+              <ListItem
                 key={job.id}
                 divider
-                onClick={() => navigate(`/jobs/${job.id}`)}
-                disabled={job.status === "queued" || job.status === "running"}
+                disablePadding
+                secondaryAction={
+                  <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
+                    {job.status === "running" && (
+                      <Box sx={{ width: 80 }}>
+                        <LinearProgress
+                          variant={job.progress > 0 ? "determinate" : "indeterminate"}
+                          value={job.progress * 100}
+                          sx={{ borderRadius: 1 }}
+                        />
+                      </Box>
+                    )}
+                    <Chip
+                      size="small"
+                      label={t(`jobs.status.${job.status}`)}
+                      color={STATUS_COLOR[job.status]}
+                    />
+                    {isPending(job) && job.status !== "cancelling" && (
+                      <Tooltip title={t("jobs.cancel")}>
+                        <IconButton size="small" onClick={(event) => void cancel(event, job)}>
+                          <CloseIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </Stack>
+                }
               >
-                <ListItemText
-                  primary={job.title}
-                  secondary={
-                    job.status === "failed"
-                      ? describeCode(job.error_code, job.error_params)
-                      : formatMeta(job)
-                  }
-                />
-                <Box sx={{ ml: 2 }}>
-                  <Chip
-                    size="small"
-                    label={t(`jobs.status.${job.status}`)}
-                    color={STATUS_COLOR[job.status]}
+                <ListItemButton
+                  onClick={() => navigate(`/jobs/${job.id}`)}
+                  disabled={job.status !== "done"}
+                  sx={{ py: 1.5, pr: 24 }}
+                >
+                  <ListItemText
+                    primary={job.title}
+                    secondary={
+                      job.status === "failed"
+                        ? describeCode(job.error_code, job.error_params)
+                        : formatMeta(job)
+                    }
                   />
-                </Box>
-              </ListItemButton>
+                </ListItemButton>
+              </ListItem>
             ))}
           </List>
         </Paper>

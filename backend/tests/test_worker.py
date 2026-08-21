@@ -73,6 +73,25 @@ async def test_an_upload_becomes_a_transcript(tmp_path: Path, sample_audio: Path
         assert transcript["segments"][1]["start"] == 1.4
 
 
+async def test_the_normalised_audio_is_downloadable_for_the_player(
+    tmp_path: Path, sample_audio: Path
+) -> None:
+    settings = settings_with_stt(tmp_path)
+
+    async with running_client(settings) as client:
+        job = await upload(client, sample_audio)
+
+        missing = await client.get(f"/api/jobs/{job['id']}/audio")
+        assert missing.status_code == 404
+
+        await run_worker_once(settings, SttStub())
+
+        audio = await client.get(f"/api/jobs/{job['id']}/audio")
+        assert audio.status_code == 200
+        assert audio.headers["content-type"] == "audio/ogg"
+        assert len(audio.content) > 0
+
+
 async def test_the_original_upload_is_gone_once_the_audio_is_normalised(
     tmp_path: Path, sample_audio: Path
 ) -> None:

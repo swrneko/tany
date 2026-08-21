@@ -11,7 +11,9 @@ export interface User {
   is_admin: boolean;
 }
 
-export type JobStatus = "queued" | "running" | "done" | "failed";
+export type JobStatus = "queued" | "running" | "cancelling" | "cancelled" | "done" | "failed";
+
+export const TERMINAL_STATUSES: readonly JobStatus[] = ["done", "failed", "cancelled"];
 
 export interface Job {
   id: string;
@@ -125,6 +127,21 @@ export const api = {
     body.append("file", file);
     // No Content-Type header: the browser has to set the multipart boundary.
     return request<Job>("/api/jobs", { method: "POST", body });
+  },
+
+  cancelJob: (id: string) => request<Job>(`/api/jobs/${id}/cancel`, { method: "POST" }),
+
+  audioUrl: (id: string) => `/api/jobs/${id}/audio`,
+
+  /** Live job list. One connection for every job, not one per job: browsers cap
+   * concurrent requests per origin, and a queue of ten would starve. */
+  watchJobs: (onJobs: (jobs: Job[]) => void): (() => void) => {
+    const source = new EventSource("/api/jobs/events");
+    source.onmessage = (event) => onJobs(JSON.parse(event.data) as Job[]);
+    // The server closes the stream once everything is terminal; EventSource
+    // would reconnect forever, so close it on the way out.
+    source.onerror = () => source.close();
+    return () => source.close();
   },
 
   listProviders: () => request<Provider[]>("/api/providers"),

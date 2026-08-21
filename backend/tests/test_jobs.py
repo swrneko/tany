@@ -22,6 +22,24 @@ async def test_uploading_a_file_creates_a_queued_job(
     assert job["title"] == "meeting.wav"
 
 
+async def test_timestamps_come_back_marked_as_utc(
+    client: AsyncClient, admin: dict[str, str], sample_audio: Path
+) -> None:
+    """SQLite drops the offset on the way in. Handing a naive timestamp to a
+    browser means it renders in whatever timezone the viewer happens to be in."""
+    await client.post("/api/auth/login", json=admin)
+    with sample_audio.open("rb") as handle:
+        created = (
+            await client.post("/api/jobs", files={"file": ("meeting.wav", handle, "audio/wav")})
+        ).json()
+
+    # Read back, not the create response: only a round trip through SQLite
+    # exposes the dropped offset.
+    fetched = (await client.get(f"/api/jobs/{created['id']}")).json()
+
+    assert fetched["created_at"].endswith(("Z", "+00:00"))
+
+
 async def test_a_job_can_be_read_back_and_appears_in_the_list(
     client: AsyncClient, admin: dict[str, str], sample_audio: Path
 ) -> None:

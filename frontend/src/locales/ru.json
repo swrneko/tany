@@ -41,8 +41,11 @@
       "queued": "В очереди",
       "running": "Распознаю",
       "done": "Готово",
-      "failed": "Ошибка"
-    }
+      "failed": "Ошибка",
+      "cancelling": "Останавливаю",
+      "cancelled": "Отменено"
+    },
+    "cancel": "Отменить"
   },
   "transcript": {
     "back": "Все транскрипты",
@@ -68,6 +71,12 @@
     "stt_rejected_request": "STT-сервер ответил {{status}}",
     "source_missing": "Загруженного файла больше нет на диске",
     "network": "Сервер недоступен",
-    "unknown": "Что-то пошло не так"
+    "unknown": "Что-то пошло не так",
+    "job_not_cancellable": "Эта задача уже завершилась",
+    "audio_unavailable": "Аудио этого транскрипта больше нет",
+    "stt_server_error": "STT-сервер ответил {{status}}",
+    "stt_unavailable": "STT-сервер упал {{attempts}} раза подряд",
+    "chunking_failed": "ffmpeg не смог нарезать аудио на чанки",
+    "not_found": "Не найдено"
   }
 }

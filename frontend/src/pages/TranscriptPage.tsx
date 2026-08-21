@@ -10,7 +10,7 @@ import {
   Switch,
   Typography,
 } from "@mui/material";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 
@@ -21,12 +21,14 @@ export function TranscriptPage() {
   const { jobId = "" } = useParams();
   const { t } = useTranslation();
   const describe = useApiErrorMessage();
+  const player = useRef<HTMLAudioElement>(null);
 
   const [job, setJob] = useState<Job | null>(null);
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showTimestamps, setShowTimestamps] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [playhead, setPlayhead] = useState(0);
 
   useEffect(() => {
     Promise.all([api.readJob(jobId), api.readTranscript(jobId)])
@@ -35,7 +37,7 @@ export function TranscriptPage() {
         setTranscript(loadedTranscript);
       })
       .catch((cause: unknown) => setError(describe(cause)));
-    // describe is recreated on every language change; refetching then is wasteful.
+    // describe is rebuilt on every language change; refetching then is waste.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 
@@ -62,6 +64,10 @@ export function TranscriptPage() {
       </Box>
     );
   }
+
+  const current = transcript.segments.find(
+    (segment) => playhead >= segment.start && playhead < segment.end,
+  );
 
   return (
     <Stack spacing={3}>
@@ -96,22 +102,54 @@ export function TranscriptPage() {
         </Stack>
       </Stack>
 
+      <Box
+        component="audio"
+        ref={player}
+        controls
+        preload="metadata"
+        src={api.audioUrl(job.id)}
+        onTimeUpdate={(event) => setPlayhead(event.currentTarget.currentTime)}
+        sx={{ width: "100%" }}
+      />
+
       <Paper elevation={0} sx={{ p: 3, borderRadius: 6 }}>
-        <Stack spacing={1.5}>
-          {transcript.segments.map((segment) => (
-            <Stack key={segment.idx} direction="row" spacing={2}>
-              {showTimestamps && (
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ fontVariantNumeric: "tabular-nums", minWidth: 64, pt: 0.25 }}
-                >
-                  {formatTimestamp(segment.start)}
-                </Typography>
-              )}
-              <Typography>{segment.text}</Typography>
-            </Stack>
-          ))}
+        <Stack spacing={0.5}>
+          {transcript.segments.map((segment) => {
+            const active = segment.idx === current?.idx;
+            return (
+              <Stack
+                key={segment.idx}
+                direction="row"
+                spacing={2}
+                onClick={() => {
+                  if (player.current) {
+                    player.current.currentTime = segment.start;
+                    void player.current.play();
+                  }
+                }}
+                sx={{
+                  cursor: "pointer",
+                  borderRadius: 2,
+                  px: 1,
+                  py: 0.75,
+                  transition: "background-color 120ms",
+                  backgroundColor: active ? "action.selected" : "transparent",
+                  "&:hover": { backgroundColor: active ? "action.selected" : "action.hover" },
+                }}
+              >
+                {showTimestamps && (
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ fontVariantNumeric: "tabular-nums", minWidth: 64, pt: 0.25 }}
+                  >
+                    {formatTimestamp(segment.start)}
+                  </Typography>
+                )}
+                <Typography sx={{ fontWeight: active ? 600 : 400 }}>{segment.text}</Typography>
+              </Stack>
+            );
+          })}
         </Stack>
       </Paper>
     </Stack>

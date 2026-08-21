@@ -1,3 +1,5 @@
+import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -33,14 +35,27 @@ class SttStub:
     our own function.
     """
 
-    def __init__(self, payload: dict[str, Any] | None = None, status: int = 200) -> None:
-        self.payload = WHISPER_VERBOSE_JSON if payload is None else payload
-        self.status = status
+    def __init__(
+        self,
+        payload: dict[str, Any] | None = None,
+        status: int = 200,
+        payload_for: Callable[[int], dict[str, Any]] | None = None,
+        status_for: Callable[[int], int] | None = None,
+        hold: asyncio.Event | None = None,
+    ) -> None:
+        fixed = WHISPER_VERBOSE_JSON if payload is None else payload
+        self._payload_for = payload_for or (lambda _index: fixed)
+        self._status_for = status_for or (lambda _index: status)
+        # When set, the handler blocks until released -- lets a test act while a
+        # request is genuinely in flight.
+        self._hold = hold
+        self.received = asyncio.Event()
         self.calls: list[RecordedRequest] = []
         self.app = FastAPI()
 
         @self.app.post("/v1/audio/transcriptions")
         async def transcriptions(request: Request) -> JSONResponse:
+            index = len(self.calls)
             async with request.form() as form:
                 upload = form.get("file")
                 recorded = RecordedRequest(
@@ -51,7 +66,10 @@ class SttStub:
                     recorded.filename = upload.filename
                     recorded.file_size = len(await upload.read())
             self.calls.append(recorded)
-            return JSONResponse(self.payload, status_code=self.status)
+            self.received.set()
+            if self._hold is not None:
+                await self._hold.wait()
+            return JSONResponse(self._payload_for(index), status_code=self._status_for(index))
 
     def http_client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(
